@@ -1,47 +1,104 @@
 # Tines URL Analysis Automation
 
-## Project Overview
+A SOAR workflow built in **Tines** that automates URL investigation using the **URLScan.io** API. Designed to replicate a real SOC analyst's URL triage process — extract, enrich, and verdict — without manual steps.
 
-This project demonstrates a Security Orchestration, Automation, and Response (SOAR) workflow built using Tines. The workflow automates URL investigation and enrichment by integrating with URLScan to perform automated analysis and data collection.
+---
 
-## Workflow
+## Workflow Overview
 
-Webhook
-↓
-Extract Domain from URL
-↓
-Submit URL to URLScan
-↓
-Retrieve Analysis Results
-↓
-Apply Conditional Logic
-↓
-Generate Investigation Output
+```
+Webhook (Submit URL)
+        ↓
+Event Transform — Extract domain from URL
+        ↓
+Condition — Check if domain is known good
+        ↓                        ↓
+  [Known Good]              [Unknown Domain]
+  Build result                    ↓
+  (skip scan)         HTTP Request — Submit URL privately to URLScan.io
+                                ↓
+                      Condition — Successful submit?
+                          ↓                  ↓
+                     [Yes]               [No — Build error result]
+                       ↓
+              Event Transform — Delay for scan to complete
+                       ↓
+              HTTP Request — Retrieve result from URLScan.io
+                       ↓
+              HTTP Request — Download screenshot from URLScan.io
+                       ↓
+              Event Transform — Build enriched investigation output
+```
 
-## Technologies Used
+---
 
-* Tines
-* URLScan
-* HTTP Requests
-* Event Transform
-* Webhooks
-* Conditional Logic
+## How It Works
 
-## Key Features
+1. **Webhook trigger** — An analyst or upstream alert sends a URL via HTTP POST to the Tines webhook
+2. **Domain extraction** — An Event Transform parses the domain from the submitted URL
+3. **Known-good check** — A Condition action checks if the domain matches a known-safe list; if yes, the scan is skipped and a clean verdict is returned immediately
+4. **URLScan submission** — If unknown, the URL is submitted **privately** to URLScan.io via API (private flag ensures it doesn't appear in public URLScan results)
+5. **Submit validation** — A Condition checks the API response; if submission failed, an error result is built and the story exits gracefully
+6. **Delay** — The workflow waits for URLScan to complete its analysis before polling for results
+7. **Result retrieval** — The scan result is fetched using the unique scan ID returned at submission
+8. **Screenshot download** — The visual screenshot captured by URLScan is pulled and stored with the event
+9. **Output** — A final Event Transform assembles the enriched data including verdict, threat indicators, and screenshot for analyst review
 
-* Automated URL analysis
-* IOC enrichment workflow
-* API integration
-* Security investigation automation
-* Automated result processing
+---
 
-## Learning Outcomes
+## Sample Webhook Payload
 
-Through this project, I gained hands-on experience with:
+```json
+{
+  "url": "http://suspicious-domain.xyz/login"
+}
+```
 
-* Security automation concepts
-* Webhook-based workflows
-* API integrations
-* IOC enrichment processes
-* Conditional logic implementation
-* SOAR workflow design
+---
+
+## Tech Stack
+
+| Component | Purpose |
+|---|---|
+| Tines | SOAR platform — workflow orchestration |
+| URLScan.io API | URL scanning, result retrieval, screenshot |
+| Webhook | Trigger point for incoming URL submissions |
+| HTTP Request actions | API calls to URLScan |
+| Event Transform | Data parsing and output formatting |
+| Condition actions | Branching logic (known-good bypass, error handling) |
+
+---
+
+## Key SOC Concepts Demonstrated
+
+- **IOC enrichment** — automated URL/domain investigation without analyst manually visiting URLScan
+- **Conditional branching** — known-good bypass reduces noise and unnecessary API calls
+- **Private scanning** — URLScan private flag prevents tipping off threat actors
+- **Async workflow handling** — delay action accounts for real-world API processing time
+- **Error handling** — failed submissions are caught and handled gracefully, not silently dropped
+- **Evidence collection** — screenshot captured automatically as part of investigation artifact
+
+---
+
+## Screenshots
+
+### Full Workflow
+![Workflow](screenshots/01_Workflow.png)
+
+### URLScan Execution — Live Event Data
+![URLScan Execution](screenshots/02_URLScan_Execution.png)
+
+---
+
+## Credentials Required
+
+| Credential Name | Service |
+|---|---|
+| `CREDENTIAL.urlscan_id` | URLScan.io API Key |
+
+---
+
+## Author
+
+**Koduru Sairam** — SOC Analyst  
+[LinkedIn](https://linkedin.com/in/kodurusairam) | [GitHub](https://github.com/kodurusairam)
